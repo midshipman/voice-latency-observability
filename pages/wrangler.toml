@@ -1,0 +1,30 @@
+name = "voice-latency-obs"
+pages_build_output_dir = "public"
+compatibility_date = "2026-10-21"
+
+[ai]
+binding = "AI"
+
+# Non-secret settings only. Secrets (PAGE_PASSCODE, WS_TOKEN, TWILIO_*) are NOT stored here:
+# set them with `wrangler pages secret put <NAME> --project-name voice-latency-obs`
+# (see docs/DEPLOYMENT.md). Without them every protected route fails closed.
+[vars]
+LLM_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+SYSTEM_PROMPT = "You are a phone voice assistant. Answer in short, natural spoken English, at most two sentences each time."
+DAILY_CALL_CAP_MS = "0"  # 0 = no daily cap; the per-call time limit and idle protections stay on
+REAL_CALL_ENABLED = "true"  # set "false" to close all real-call routes server-side
+
+[[durable_objects.bindings]]
+name = "CALLGATE"
+class_name = "CallGate"
+script_name = "voice-latency-obs-do"
+
+[[durable_objects.bindings]]
+name = "METRICS"
+class_name = "MetricsStore"
+script_name = "voice-latency-obs-do"
+
+[[durable_objects.bindings]]
+name = "LIVEBUS"
+class_name = "LiveBus"
+script_name = "voice-latency-obs-do"

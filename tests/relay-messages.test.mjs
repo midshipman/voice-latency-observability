@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import {rejectTwiML,handleRelaySession, classifyRelayError, configSnapshot, conversationRelayTwiML} from '../pages/functions/_lib.js';
+import {MetricsStore} from '../worker/worker.js';
+globalThis.setTimeout=()=>1;globalThis.clearTimeout=()=>{};globalThis.setInterval=()=>1;globalThis.clearInterval=()=>{};
+let count=0;const chk=(n,ok)=>{assert.ok(ok,n);console.log('PASS',n);count++;};
+// official error table: 64107/64111/64112 keep the session, 64105 ends it, 64106 depends, no code = unknown
+chk('64107 keeps session',classifyRelayError("Invalid message received, code: 64107, type: config").endsSession===false);
+chk('64112 keeps session',classifyRelayError('code 64112 tts').endsSession===false);
+chk('64105 ends session',classifyRelayError('WebSocket ended code: 64105').endsSession===true);
+chk('64106 unknown',classifyRelayError('code: 64106').endsSession===null&&classifyRelayError('code: 64106').code===64106);
+chk('no code unknown',classifyRelayError('weird').code===null&&classifyRelayError('weird').endsSession===null);
+chk('config snapshot scalar-only',(()=>{const c=configSnapshot({ttsProvider:'ElevenLabs',speechTimeout:600,partialPrompts:true,hints:['a'],long:'x'.repeat(50),'bad key':'x',obj:{a:1}});return c.ttsProvider==='ElevenLabs'&&c.speechTimeout===600&&c.partialPrompts===true&&c.hints==='array'&&!('long'in c)&&!('bad key'in c)&&c.obj==='object';})());
+const tw=conversationRelayTwiML('h','t','l');
+chk('twiml subscribes config-updated and partials',/events="speaker-events tokens-played config-updated"/.test(tw)&&/partialPrompts="true"/.test(tw));
+chk('twiml keeps model and interrupt settings',/speechModel="nova-3-general"/.test(tw)&&/ttsProvider="ElevenLabs"/.test(tw)&&/interruptible="speech"/.test(tw)&&!/speechTimeout|interruptSensitivity|eotThreshold/.test(tw));
+const storage={};const db=new MetricsStore({storage:{get:async k=>structuredClone(storage[k]),put:async(k,v)=>{storage[k]=structuredClone(v);}}},{});
+const promises=[];const pub=[];let handler,closeH;let llmCalls=0;
+const ws={accept(){},addEventListener(t,fn){if(t==='message')handler=fn;if(t==='close')closeH=fn;},send(){},close(){}};
+const env={LLM_MODEL:'m',SYSTEM_PROMPT:'s',AI:{run:async()=>{llmCalls++;return new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('data: [DONE]\n'));c.close();}});}}};
+let chain=Promise.resolve();const metrics={fetch:(u,i)=>{const t=chain.then(()=>db.fetch(new Request(u,i)));chain=t.catch(()=>{});return t;}};
+handleRelaySession(ws,env,{waitUntil:p=>promises.push(p)},{fetch:async()=>Response.json({ok:true})},metrics,{fetch:async(u,i)=>{const b=JSON.parse(i.body);(Array.isArray(b)?b:[b]).forEach(x=>pub.push(x));return Response.json({ok:true});}},'lease');
+await handler({data:JSON.stringify({type:'setup',sessionId:'VX32e60df1f7b9e9b67315cc0d55e0a116',callSid:'CA-T1',from:'client:test'})});
+await handler({data:JSON.stringify({type:'info',name:'configUpdated',value:{session:{ttsProvider:'ElevenLabs',speechTimeout:'600',transcriptionLanguage:'en-US',secretText:'S'.repeat(60)}}})});
+await handler({data:JSON.stringify({type:'prompt',last:false,voicePrompt:'PARTIAL SECRET TEXT'})});
+await handler({data:JSON.stringify({type:'prompt',last:false,voicePrompt:'PARTIAL SECRET TEXT MORE'})});
+await handler({data:JSON.stringify({type:'error',description:'Invalid message received, code: 64107, type: config, error: x'})});
+await handler({data:JSON.stringify({type:'error',description:'WebSocket ended, code: 64105'})});
+await handler({data:JSON.stringify({type:'info',name:'clientSpeaking',value:true})});
+await handler({data:JSON.stringify({type:'info',name:'agentSpeaking',value:false})});
+await handler({data:JSON.stringify({type:'info',name:'tokensPlayed',value:{x:1}})});
+await handler({data:JSON.stringify({type:'info',name:'configUpdated',value:{language:[{ttsProvider:'ElevenLabs',voice:'v1'}]}})});
+await handler({data:JSON.stringify({type:'interrupt',utteranceUntilInterrupt:'SECRET WORDS',durationUntilInterruptMs:460})});
+closeH&&closeH(); /* v5y: records are batched; closing the socket flushes the last batch */ await Promise.all(promises);await chain;
+const ev=(await (await db.fetch(new Request('https://m/sessions'))).json()).sessions[0].events;
+const by=n=>ev.filter(e=>e.event===n);
+chk('setup stores relay sessionId and key names',by('setup')[0].sessionId==='VX32e60df1f7b9e9b67315cc0d55e0a116'&&by('setup')[0].setupKeys.includes('sessionId'));
+chk('info configUpdated recorded as call-only evidence',by('relay_info').length===2&&by('relay_info')[0].name==='configUpdated'&&by('relay_info')[0].association==='call_only'&&by('relay_info')[0].evidence==='E2'&&by('relay_info')[0].source==='relay-realtime');
+chk('info config snapshot has no free text',by('relay_info')[0].config.ttsProvider==='ElevenLabs'&&!('secretText'in by('relay_info')[0].config)&&by('relay_info')[0].valueKeys[0]==='session');
+chk('partials counted by length only, no LLM, no turn',by('partial_prompt').length===1&&by('partial_summary').length===1&&by('partial_summary')[0].count===2&&by('partial_prompt').every(e=>e.chars>0&&!('text'in e))&&llmCalls===0&&by('turn').length===0);
+chk('partials do not borrow a turn',by('partial_prompt').every(e=>e.association==='call_only'&&!('turn'in e)));
+const errs=by('twilio_error');
+chk('error codes parsed and classified',errs[0].code===64107&&errs[0].endsSession===false&&errs[1].code===64105&&errs[1].endsSession===true);
+chk('live error carries endsSession',pub.filter(e=>e.type==='error').map(e=>e.endsSession).join()==='false,true');
+chk('real shape: info clientSpeaking/agentSpeaking still become speaker events',by('speaker').length===2&&by('speaker')[0].who==='client'&&by('speaker')[0].on===true&&by('speaker')[1].who==='agent'&&by('speaker')[1].on===false);
+chk('real shape: info tokensPlayed becomes tokens_played, not relay_info',by('tokens_played').length===1&&by('relay_info').every(e=>e.name==='configUpdated'));
+chk('configUpdated language array kept as scalars',by('relay_info')[1].languages[0].voice==='v1');
+const rseq=ev.filter(e=>e.source==='relay-realtime'&&e.relaySeq!=null).map(e=>e.relaySeq); const folded=ev.filter(e=>e.event==='partial_summary').reduce((a,e)=>a+e.count-1,0);
+chk('relay events share source seq and evidence tag (v5z4: gaps in relaySeq are exactly the folded partials, count in partial_summary)',rseq.every((n,i)=>i===0||n>rseq[i-1])&&rseq.at(-1)-rseq.length===folded&&ev.filter(e=>e.source==='relay-realtime').every(e=>e.sessionId==='VX32e60df1f7b9e9b67315cc0d55e0a116'));
+chk('interrupt keeps progress ms and drops words',by('interrupt')[0].durationUntilInterruptMs===460&&!JSON.stringify(ev).includes('SECRET WORDS')&&!JSON.stringify(ev).includes('PARTIAL SECRET'));
+chk('busy rejection says busy, not "not open"',rejectTwiML('busy').includes('A call is already in progress')&&!rejectTwiML('busy').includes('not open yet')&&rejectTwiML('calls_disabled').includes('not open yet')&&rejectTwiML('daily_cap').includes('tomorrow'));
+console.log('relay-messages tests passed:',count);
+import {summarizeInsights,relayLegCoverage} from '../pages/functions/_lib.js';
+{const ev=[{group:'conversation_relay',name:'stt_latency',timestamp:'t1',conversation_relay_data:{stt_latency:{latency_ms:200}}},{group:'conversation_relay',name:'stt_latency',timestamp:'t1',conversation_relay_data:{stt_latency:{latency_ms:100}}},{group:'conversation_relay',name:'tts_latency',timestamp:'t3',conversation_relay_data:{tts_latency:{latency_ms:150}}},{group:'other',name:'stt_latency'}];
+const sum={processing_state:'partial',agent_session_summaries:[{turns:2,interruptions:{agent_to_customer:0,customer_to_agent:1},network_latency_ms:{min:19,avg:27,max:39},stt_latency_ms:{min:0,avg:120,max:240},session_state:'hung_up'}]};
+const s=summarizeInsights(ev,3,sum),z=summarizeInsights([],0,null);
+const ok=s.evidence==='E5'&&s.match.stt.events===2&&s.match.stt.expected===3&&s.match.stt.missing===1&&s.match.stt.duplicateTimestamps===1&&s.match.tts.judgeable===false&&s.match.tts.missing===null&&s.telemetryCoverage.known===false&&s.clock==='uncalibrated'&&!JSON.stringify(s).includes('meetsTarget')&&s.summaries[0].interruptions.customerToAgent===1&&s.summaries[0].networkMs.avg===27&&s.summaries[0].matchedToEvents===false&&summarizeInsights([{group:'conversation_relay',name:'x',conversation_relay_data:{session_id:'VX1'}},{group:'conversation_relay',name:'x',conversation_relay_data:{session_id:'VX2'}}],1,{agent_session_summaries:[{session_id:'VX2',turns:1},{session_id:'VX9',turns:2}]}).summaries.map(x=>x.matchedToEvents).join()==='true,false'&&summarizeInsights([{group:'conversation_relay',name:'x',conversation_relay_data:{session_id:'VX1'}},{group:'conversation_relay',name:'x',conversation_relay_data:{session_id:'VX2'}}],1,null).sessionNote!==null&&z.summary.unavailable===true&&z.match.stt.expected===null&&summarizeInsights([{group:'conversation_relay',name:'stt_latency',timestamp:'a',conversation_relay_data:{stt_latency:{latency_ms:1}}},{group:'conversation_relay',name:'stt_latency',timestamp:'b',conversation_relay_data:{stt_latency:{latency_ms:1}}}],1,null).match.stt.extra===1;
+console.log(ok?'PASS insights: E5, match missing/extra/duplicate separate, coverage unknown, no cap, summary fields':'FAIL insights summary'); if(!ok)process.exit(1);}
+{const ie=(name,ts)=>({group:'conversation_relay',name,timestamp:ts});
+const ins=[ie('start_of_customer_speech','1'),ie('prompt_sent','2'),ie('prompt_sent','3'),ie('prompt_sent','3'),ie('interrupt','4'),ie('start_of_agent_speech','5')];
+const stored=[{event:'speaker',who:'client',on:true},{event:'partial_prompt'},{event:'boundary',boundary:'relay_final_received'},{event:'interrupt'},{event:'speaker',who:'agent',on:true},{event:'speaker',who:'agent',on:true}];
+const c=relayLegCoverage(ins,stored), z=relayLegCoverage([],stored);
+const ok=c.totalEmitted===6&&c.kinds.find(k=>k.kind==='prompt_sent').missing===1&&c.kinds.find(k=>k.kind==='prompt_sent').duplicatesInSource===1&&c.kinds.find(k=>k.kind==='start_of_agent_speech').extra===1&&c.totalMatched===5&&Math.abs(c.ratio-5/6)<1e-9&&c.meetsTarget===undefined&&z.decidable===false&&z.ratio===null&&c.scope.includes('Worker leg');
+console.log(ok?'PASS relay-leg coverage: emitted vs stored per kind, missing/extra/duplicate separate, undecidable without source':'FAIL relay-leg coverage');if(!ok)process.exit(1);}
+
+{const a=conversationRelayTwiML('h','t','l'), b=conversationRelayTwiML('h','t','l',false);
+ console.log(a.includes('partialPrompts="true"')&&b.includes('partialPrompts="false"')&&!b.includes('partialPrompts="true"')?'PASS experiment switch: default partialPrompts=true unchanged, off only when requested':'FAIL experiment switch');}

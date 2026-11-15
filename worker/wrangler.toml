@@ -1,0 +1,21 @@
+# Durable Object host Worker. Deploy this FIRST (see docs/DEPLOYMENT.md): the Pages project
+# binds its Durable Objects by script name. It serves no routes of its own.
+name = "voice-latency-obs-do"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[[durable_objects.bindings]]
+name = "CALLGATE"
+class_name = "CallGate"
+
+[[durable_objects.bindings]]
+name = "METRICS"
+class_name = "MetricsStore"
+
+[[durable_objects.bindings]]
+name = "LIVEBUS"
+class_name = "LiveBus"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CallGate", "MetricsStore", "LiveBus"]

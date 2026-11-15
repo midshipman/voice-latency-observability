@@ -1,0 +1,27 @@
+import {onRequestPost as netlog} from '../pages/functions/netlog.js';
+import {onRequestGet as ping} from '../pages/functions/ping.js';
+import {MetricsStore} from '../worker/worker.js';
+let pass=0,fail=0;const chk=(n,c)=>{c?pass++:fail++;console.log((c?'PASS ':'FAIL ')+n);};
+const storage={};const db=new MetricsStore({storage:{get:async k=>structuredClone(storage[k]),put:async(k,v)=>{storage[k]=structuredClone(v);}}},{});
+await db.fetch(new Request('https://m/event',{method:'POST',body:JSON.stringify({sessId:'S1',event:{event:'setup',callSid:'CA1',ts:new Date().toISOString()}})}));
+const env={PAGE_PASSCODE:'pw',METRICS:{idFromName:()=>1,get:()=>({fetch:(u,i)=>db.fetch(new Request(u,i))})}};
+const enc=new TextEncoder();
+async function cookie(){const exp=Math.floor(Date.now()/1000)+600;const k=await crypto.subtle.importKey('raw',enc.encode('pw'),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+ const sig=Buffer.from(await crypto.subtle.sign('HMAC',k,enc.encode('vp-session-v1.'+exp))).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');return 'vp_sess='+exp+'.'+sig;}
+const ck=await cookie();
+const post=(b,h={cookie:ck})=>netlog({request:new Request('https://m/netlog',{method:'POST',headers:h,body:JSON.stringify(b)}),env});
+const n0=()=>storage.sessions?0:0;
+chk('no cookie rejected',(await post({sessId:'S1',callSid:'CA1'},{})).status===403);
+chk('unknown session rejected, no new row',(await post({sessId:'NOPE',callSid:'CA1'})).status===404);
+chk('callSid mismatch rejected',(await post({sessId:'S1',callSid:'CA9'})).status===404);
+const ok=await post({sessId:'S1',callSid:'CA1',edgeN:7,edgeMinMs:21.34,mediaRttMs:111,upJitterMs:3,clkOffsetMs:0,secret:'x',evil:{a:1}});
+chk('valid sample stored',ok.status===200);
+const list=(await (await db.fetch(new Request('https://m/sessions'))).json()).sessions;
+const ev=list.find(s=>s.id==='S1').events.find(e=>e.event==='browser_net');
+chk('only whitelisted numeric fields',ev&&ev.edgeN===7&&ev.mediaRttMs===111&&!('secret' in ev)&&!('evil' in ev));
+chk('offset flagged uncalibrated',ev.clkCalibrated===false);
+chk('still exactly one session',list.length===1);
+const pr=await ping({request:Object.assign(new Request('https://m/ping',{headers:{cookie:ck}}),{cf:{colo:'FRA',clientTcpRtt:23}}),env});
+const pj=await pr.json();chk('ping returns cf tcp rtt, no side effects',pj.tcpRtt===23&&pj.colo==='FRA');
+chk('ping guarded',(await ping({request:new Request('https://m/ping'),env})).status===403);
+console.log(pass+' passed, '+fail+' failed');process.exit(fail?1:0);
