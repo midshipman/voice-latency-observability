@@ -2,7 +2,7 @@ import { sessionOk, GATE_PAGE, PAGE_BUILD, modelsInfo } from './_lib.js';
 
 const CALL_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Voice call · live chain</title>
+<title>Voice latency observability · live call</title>
 <style>
 :root{--bg:#17181c;--card:#1e2026;--line:#2b2e36;--txt:#e8e6e1;--dim:#a8a49b;
 --acx:#63b8a2;--acline:#2e7d6b;--wait:#d9b76a;--done:#7cc7b1;--fail:#d98c84}
@@ -88,7 +88,7 @@ button:disabled{opacity:.35;cursor:default}
 .legend{margin-top:14px;color:var(--dim);font-size:.68rem;line-height:1.65}
 .demo{background:rgba(211,180,115,.14);color:#d3b473;font-size:.68rem;border-radius:6px;padding:2px 8px;margin-left:8px}
 </style></head><body>
-<h1>Voice call · live chain<span id="demotag" class="demo" style="display:none">demo data</span></h1>
+<h1>Voice latency observability · live call<span id="demotag" class="demo" style="display:none">demo data</span></h1>
 <div class="sub">Q&A in English · each call auto-hangs up after 10 minutes · <a href="/obs">Observability →</a> · version ${PAGE_BUILD}</div>
 <div class="controls"><button id="call">Call</button><button id="hangup" disabled>Hang up</button></div>
 <div class="chainwrap"><div class="chainin">

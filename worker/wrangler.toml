@@ -4,6 +4,12 @@ name = "voice-latency-obs-do"
 main = "worker.js"
 compatibility_date = "2026-10-01"
 
+# Read inside the CallGate Durable Object, so it must live on THIS worker (a var on the
+# Pages project does not reach it). 0 = no daily cumulative cap (user decision 2026-10-21 19:36).
+# The per-call limit, idle cleanup and single-call lock stay on.
+[vars]
+DAILY_CALL_CAP_MS = "0"
+
 [[durable_objects.bindings]]
 name = "CALLGATE"
 class_name = "CallGate"

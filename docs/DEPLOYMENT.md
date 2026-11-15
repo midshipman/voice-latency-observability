@@ -40,7 +40,8 @@ npx wrangler pages secret put TWILIO_TWIML_APP_SID  --project-name voice-latency
 
 (The dashboard path is Settings > Variables and Secrets > Add > Encrypt.) Plain `[vars]` in
 `pages/wrangler.toml` hold only non-secret settings: `LLM_MODEL`, `SYSTEM_PROMPT`,
-`DAILY_CALL_CAP_MS`, `REAL_CALL_ENABLED`. For local development put secrets in `.dev.vars`
+`REAL_CALL_ENABLED`. `DAILY_CALL_CAP_MS` (0 = no daily cap) is read by the Durable Object, so it is a var of
+`worker/wrangler.toml`, not of the Pages project. For local development put secrets in `.dev.vars`
 (git-ignored).
 
 | Secret | Used for |

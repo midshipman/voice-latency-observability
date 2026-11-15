@@ -88,6 +88,19 @@ export function modelsInfo(env) {
 }
 
 
+// Conversation history for the LLM. A user line is recorded the moment its final
+// transcript arrives (call order). A reply is inserted right after its own user
+// line when (and only if) it completed, so out-of-order completion and cancelled
+// turns (empty reply) no longer leave empty assistant messages or misordered lines.
+export function historyAddUser(history, text) { const m = { role: "user", content: String(text || "") }; history.push(m); return m; }
+export function historyAddReply(history, userMsg, reply) {
+  if (!reply) return false;
+  const i = history.indexOf(userMsg);
+  const a = { role: "assistant", content: reply };
+  if (i < 0) history.push(a); else history.splice(i + 1, 0, a);
+  return true;
+}
+
 export async function* streamLLM(env, history, prompt, model, observe = () => {}) {
   const payload = {
     stream: true,
@@ -362,6 +375,10 @@ export function handleRelaySession(ws, env, ctx, gateStub, metricsStub, liveStub
           if (sess.pendingSpeakerOff != null) { turn.tSpeakerOffSrv = sess.pendingSpeakerOff; sess.pendingSpeakerOff = null; }
           sess.tokensPlayedFirst = null;
           let full = '', firstTokenAt = null, chunkSeq = 0;
+          // history as of this turn's start (earlier user lines, completed replies only); this turn's own user line is added right after
+          const historySnapshot = sess.history.slice();
+          const userMsg = historyAddUser(sess.history, msg.voicePrompt);
+          turn.llmInflightAtStart = sess.llmInflight || 0; sess.llmInflight = (sess.llmInflight || 0) + 1;
           // v5z4: every chunk is still sent and counted; only the FIRST chunk, the last=true chunk, fallback chunks and any skipped/failed chunk get
           // boundary records (rec + live pub). The middle chunks (2-3 characters each, send start->returned was 0 ms on all 129 chunks of the 11-03 17:12 call)
           // are folded into per-turn counters (turn.textChunks) so nothing about count, size or failure is lost. Readers use chunkSeq 1 and last=true only.
@@ -382,7 +399,7 @@ export function handleRelaySession(ws, env, ctx, gateStub, metricsStub, liveStub
             } catch (error) { tc.failed++; boundary('relay_text_send_failed', {chunkSeq:seq,last,fallback}); throw error; }
           };
           try {
-            for await (const tok of streamLLM(env, sess.history, msg.voicePrompt, undefined, boundary)) {
+            for await (const tok of streamLLM(env, historySnapshot, msg.voicePrompt, undefined, boundary)) {
               if (typeof tok !== 'string' || tok.length === 0) continue;
               if (ctl.cancelled) break; // a token that arrives after cancel is dropped before any first-token record or send
               if (firstTokenAt === null) {
@@ -400,7 +417,7 @@ export function handleRelaySession(ws, env, ctx, gateStub, metricsStub, liveStub
             else {
             // A send failure is not mislabeled a model failure.
             const sendFailure = stamps.relay_text_send_failed != null;
-            boundary(sendFailure ? 'turn_transport_failure' : 'llm_failed');
+            boundary(sendFailure ? 'turn_transport_failure' : 'llm_failed', sendFailure ? {} : { errorText: String(error && error.message || error).replace(/[^\x20-\x7e]/g, '').slice(0, 160) });
             console.error(sendFailure ? 'Relay send error' : 'LLM error', String(error));
             full = 'Sorry, the middle layer failed. Please say that again.';
             try { textSend(full, false, true); } catch {}
@@ -425,7 +442,8 @@ export function handleRelaySession(ws, env, ctx, gateStub, metricsStub, liveStub
           turn.aiTotalGenMs = stamps.llm_stream_end && stamps.llm_request_start ? stamps.llm_stream_end.mono-stamps.llm_request_start.mono : null;
           rec(turn);
           pub({ type:'llm_done', turn:turnId, utteranceId, responseId, ms:turn.replyTotalMs, chars:full.length, ...(ctl.cancelled ? {cancelled:ctl.cancelled} : {}) });
-          sess.history.push({role:'user',content:msg.voicePrompt},{role:'assistant',content:full});
+          sess.llmInflight = Math.max(0, (sess.llmInflight || 1) - 1);
+          historyAddReply(sess.history, userMsg, full); // empty (cancelled before any text) adds nothing; a partial reply that was already sent is kept, as before
           break;
         }
         case "error":
@@ -589,6 +607,7 @@ button{font-size:.82rem;padding:.35rem .9rem;border-radius:8px;border:1px solid 
 .msrc.warn{background:#f4ead5;color:#7d6227}
 .msrc.bad{background:#f3e1de;color:#96463d}
 @media (max-width:480px){.agg-vl{width:100%;margin:.1rem 0 .3rem}}
+.schip{white-space:normal}.segi{display:block;white-space:normal;overflow-wrap:anywhere}.tln{overflow-wrap:anywhere}body{overflow-wrap:anywhere}.blab,.drift,.ilab{overflow-wrap:anywhere}@media(max-width:600px){.bar-row{flex-wrap:wrap}.cascade{min-width:40%}}
 </style></head><body>
 <h2>Voice latency observability</h2>
 <div class="sub">auto-refreshes every 5 s · stores only timing and event metadata, no recordings, no conversation text · <span class="tag m">measured</span>=server record · <span class="tag b">approx</span>=browser clock estimate (includes provider internals + network + buffering) · <a href="/">Call page</a> · version ${PAGE_BUILD}/<span id="wbuild">?</span></div>
@@ -612,7 +631,7 @@ button{font-size:.82rem;padding:.35rem .9rem;border-radius:8px;border:1px solid 
 <div class="sub" style="margin:.4rem 0 0">runs 6 fixed prompts through the middle LLM, records only latency and character counts, does not store answers · <b>measures latency only, not answer correctness</b> · for comparing after a model swap or a decision layer · repeated runs within the same minute are rejected by the server (quota protection)</div></div>
 
 <div class="card"><b>Budget and basis notes</b>
-<div class="bk"><span class="bkl">Pure component budget</span><span>endpointing decision+ASR <b>300</b> · LLM first token <b>350</b> · TTS first audio <b>150</b> · network + playback <b>150</b> · slack <b>50</b>(Critical path total 1000ms)</span></div>
+<div class="bk"><span class="bkl">Pure component budget</span><span>endpointing decision+ASR <b>300</b> · LLM first token <b>350</b> · TTS first audio <b>150</b> · network + playback <b>150</b> · slack <b>50</b> (Critical path total 1000ms)</span></div>
 <div class="bk"><span class="bkl">Observation mapping <span class="tag b">approx</span></span><span>s1 stop speaking → transcript <b>300ms</b> · s2 transcript → first token <b>350ms</b> · s3 first token → audible <b>300ms</b> · end to end <b>1000ms</b></span></div>
 <div class="bk"><span class="bkl">Status colors</span><span><b style="color:#276552">green ≤ budget</b> · <b style="color:#a5660f">orange ≤1.5×</b> · <b style="color:#96463d">red >1.5×</b>,judged separately per segment from measured values</span></div>
 <div class="bk"><span class="bkl">Live halo</span><span>the halo of an in-progress stage on the call page = live status of that wait against the budget (same thresholds as above, browser side<span class="tag b">approx</span>);"speak" and "play" are not budgeted——speaking and playback durations are not latency; "think" counts only up to the first token, not the whole turn; duration numbers after a segment completes are still colored by the same thresholds</span></div>
@@ -709,7 +728,7 @@ function statChips(s, turns, full) {
   if (resN) h += '<span class="schip wrn">interrupt remnant ×' + resN + '(turns not deduplicated)</span>';
   if (unN) h += '<span class="schip wrn">speech start/end not linked ×' + unN + '(no browser volume evidence)</span>';
   const mv = medE2eVal(s);
-  if (mv != null) h += '<span class="schip">median E2E <b style="color:' + BC[bst(mv, BUDGET.e2e)] + '">' + Math.round(mv) + 'ms</b>(approximate, regular median basis, rounded to ms)</span>';
+  if (mv != null) h += '<span class="schip">median E2E <b style="color:' + BC[bst(mv, BUDGET.e2e)] + '">' + Math.round(mv) + 'ms</b> (approximate, regular median basis, rounded to ms)</span>';
   if (full) {
     h += '<span class="schip">' + esc(modelsShort(sessModels(s))) + '</span>';
     if (NR[sid]) h += '<span class="schip">transcript not received ×' + NR[sid] + '</span>';
@@ -740,7 +759,7 @@ function cascadeHtml(s, isSim) {
     let html = '<div class="bar-row"><span class="tn">turn ' + r.t.turn + '</span>'
       + '<div class="cascade">' + bar + '</div><span class="e2ev"' + (numok(r.sg.e2e) ? ' style="color:' + BC[bst(r.sg.e2e, BUDGET.e2e)] + '"' : '') + '>' + e2eTxt + '</span></div>';
     const flags = [];
-    if (maxK) flags.push('<span class="blab">▲ slowest segment:' + SEGNAME[maxK] + ' ' + Math.round(maxV) + 'ms(' + tagOf(maxK) + ')</span>');
+    if (maxK) flags.push('<span class="blab">▲ slowest segment:' + SEGNAME[maxK] + ' ' + Math.round(maxV) + 'ms (' + tagOf(maxK) + ')</span>');
     if (r.tl && r.tl.interrupted) flags.push('<span class="ilab">interrupted</span>');
     const v4row = r.tl && String(r.tl.pageBuild || '') >= '2026-10-31.bw-baseline-v4';
     if (r.tl) {
@@ -756,15 +775,15 @@ function cascadeHtml(s, isSim) {
     if (r.tl && numok(r.tl.sttRecvTs) && numok(r.tl.llmFirstRecvTs) && numok(r.t.llmFirstTokenMs)) {
       const s2b = r.tl.llmFirstRecvTs - r.tl.sttRecvTs;
       const dd = Math.abs(s2b - r.t.llmFirstTokenMs);
-      if (dd > 50) flags.push('<span class="drift">clock offset exceeded ±' + Math.round(dd) + 'ms(browser ' + Math.round(s2b) + 'ms vs server ' + Math.round(r.t.llmFirstTokenMs) + 'ms)</span>');
+      if (dd > 50) flags.push('<span class="drift">clock offset exceeded ±' + Math.round(dd) + 'ms (browser ' + Math.round(s2b) + 'ms vs server ' + Math.round(r.t.llmFirstTokenMs) + 'ms)</span>');
     }
     if (flags.length) html += '<div style="margin:-.15rem 0 .1rem 3rem">' + flags.join('') + '</div>';
     const nums = segs.map(([k, v]) => {
       if (!numok(v)) return '<span class="segi"><i class="cdot" style="background:' + STAGEC[k] + '"></i>' + SEGNAME[k] + ' not measured</span>';
       const vv = Math.round(v);
-      return '<span class="segi"><i class="cdot" style="background:' + STAGEC[k] + '"></i>' + SEGNAME[k] + ' <b style="color:' + BC[bst(v, BUDGET[k])] + '">' + vv + 'ms</b>(' + tagOf(k) + (r.sg.amp && r.sg.amp[k] ? '·legacy amplitude' : '') + ')</span>';
+      return '<span class="segi"><i class="cdot" style="background:' + STAGEC[k] + '"></i>' + SEGNAME[k] + ' <b style="color:' + BC[bst(v, BUDGET[k])] + '">' + vv + 'ms</b> (' + tagOf(k) + (r.sg.amp && r.sg.amp[k] ? '·legacy amplitude' : '') + ')</span>';
     }).join('');
-    const talk = (r.tl && numok(r.tl.speechStartTs) && numok(r.tl.speechEndTs)) ? 'speech ' + Math.round(r.tl.speechEndTs - r.tl.speechStartTs) + 'ms(volume inference' + (r.sg.amp && r.sg.amp.s1 ? ',legacy amplitude basis' : '') + ') · ' : '';
+    const talk = (r.tl && numok(r.tl.speechStartTs) && numok(r.tl.speechEndTs)) ? 'speech ' + Math.round(r.tl.speechEndTs - r.tl.speechStartTs) + 'ms (volume inference' + (r.sg.amp && r.sg.amp.s1 ? ',legacy amplitude basis' : '') + ') · ' : '';
     html += '<div class="miss" style="margin-top:0">' + talk + nums + '</div>';
     html += metric6Html(s, r.t, r.tl, isSim);
     return html;
@@ -904,7 +923,7 @@ async function load() {
   s2rows.sort((a, b) => b.s2 - a.s2);
   if (s2rows.length >= 3) {
     aggH += '<div class="sub" style="margin-top:.35rem">s2 slowest 3 turns:' + s2rows.slice(0, 3).map(r =>
-      Math.round(r.s2) + 'ms(input ' + (r.pc ?? '?') + ' chars / output ' + (r.rc ?? '?') + ' chars)').join(' · ')
+      Math.round(r.s2) + 'ms (input ' + (r.pc ?? '?') + ' chars / output ' + (r.rc ?? '?') + ' chars)').join(' · ')
       + ' —correlation between segments needs more samples, no causal conclusion for now</div>';
   }
   document.getElementById('segagg').innerHTML = aggH || '<span class="sub">No per-turn samples yet.</span>';

@@ -11,7 +11,6 @@ binding = "AI"
 [vars]
 LLM_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 SYSTEM_PROMPT = "You are a phone voice assistant. Answer in short, natural spoken English, at most two sentences each time."
-DAILY_CALL_CAP_MS = "0"  # 0 = no daily cap; the per-call time limit and idle protections stay on
 REAL_CALL_ENABLED = "true"  # set "false" to close all real-call routes server-side
 
 [[durable_objects.bindings]]
