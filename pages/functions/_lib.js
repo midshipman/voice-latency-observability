@@ -759,7 +759,7 @@ function cascadeHtml(s, isSim) {
     let html = '<div class="bar-row"><span class="tn">turn ' + r.t.turn + '</span>'
       + '<div class="cascade">' + bar + '</div><span class="e2ev"' + (numok(r.sg.e2e) ? ' style="color:' + BC[bst(r.sg.e2e, BUDGET.e2e)] + '"' : '') + '>' + e2eTxt + '</span></div>';
     const flags = [];
-    if (maxK) flags.push('<span class="blab">▲ slowest segment:' + SEGNAME[maxK] + ' ' + Math.round(maxV) + 'ms (' + tagOf(maxK) + ')</span>');
+    if (maxK) flags.push('<span class="blab">▲ slowest segment: ' + SEGNAME[maxK] + ' ' + Math.round(maxV) + 'ms (' + tagOf(maxK) + ')</span>');
     if (r.tl && r.tl.interrupted) flags.push('<span class="ilab">interrupted</span>');
     const v4row = r.tl && String(r.tl.pageBuild || '') >= '2026-10-31.bw-baseline-v4';
     if (r.tl) {
