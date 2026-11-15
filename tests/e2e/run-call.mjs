@@ -1,0 +1,25 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'node:fs';
+const [,, audio, durS, out] = process.argv;
+fs.mkdirSync(out,{recursive:true});
+const pass = fs.readFileSync(process.env.PASSCODE_FILE,'utf8').trim();
+const b = await puppeteer.launch({executablePath:'/usr/bin/google-chrome',headless:'new',args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream',`--use-file-for-fake-audio-capture=${audio}%noloop`,'--autoplay-policy=no-user-gesture-required','--window-size=480,1400']});
+const p = await b.newPage(); await p.setViewport({width:480,height:1400});
+const logs=[]; p.on('console',m=>logs.push(Date.now()+' '+m.type()+' '+m.text().slice(0,300))); p.on('pageerror',e=>logs.push(Date.now()+' pageerror '+String(e).slice(0,300)));
+await p.goto((process.env.BASE_URL+'/'),{waitUntil:'domcontentloaded'});
+if (await p.$('input[name=passcode]')) { await p.type('input[name=passcode]',pass); await Promise.all([p.waitForNavigation(),p.keyboard.press('Enter')]); }
+await p.waitForSelector('#call');
+console.log('build', await p.evaluate(()=>document.body.innerText.match(/v\d[\w.-]*|20\d\d-\d\d-\d\d\.[\w-]+/g)?.slice(0,3)));
+const t0=Date.now(); const snaps=[];
+await p.click('#call'); console.log('clicked call');
+let i=0;
+if(process.env.HANGUP_AT) setTimeout(()=>p.click('#hangup').catch(()=>{}),Number(process.env.HANGUP_AT)*1000);
+const iv=setInterval(async()=>{ try{ const s=await p.evaluate(()=>({inCall:typeof inCall!=='undefined'?inCall:null,nst:typeof nst!=='undefined'?JSON.parse(JSON.stringify(nst)):null,turn:typeof curTurn!=='undefined'?curTurn:null,btn:document.getElementById('hangup').disabled,mic:typeof suspectSpeech!=='undefined'?suspectSpeech:null})); snaps.push({t:Date.now()-t0,...s}); }catch(e){} },250);
+const sh=setInterval(async()=>{ try{ await p.screenshot({path:`${out}/s${String(i++).padStart(3,'0')}.png`}); }catch(e){} },2000);
+await new Promise(r=>setTimeout(r,Number(durS)*1000));
+clearInterval(iv); clearInterval(sh);
+await p.screenshot({path:`${out}/final_viewport.png`}); await p.screenshot({path:`${out}/final_full.png`,fullPage:true});
+fs.writeFileSync(`${out}/snaps.json`,JSON.stringify(snaps)); fs.writeFileSync(`${out}/console.log`,logs.join('\n'));
+const txt = await p.evaluate(()=>document.body.innerText); fs.writeFileSync(`${out}/page.txt`,txt); fs.writeFileSync(`${out}/evlog.txt`,await p.evaluate(()=>document.getElementById('ev').textContent));
+await p.click('#hangup').catch(()=>{}); await new Promise(r=>setTimeout(r,3000));
+await b.close(); console.log('done snaps',snaps.length,'logs',logs.length);

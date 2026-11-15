@@ -419,7 +419,7 @@ const STALL_MS = 10000, STALL_HARD_MS = 30000, LIVE_LOST_MS = 15000; // v5z3: 10
 function stallCheck(now) {
   { // observation-channel health: independent of business state and of agent playback
     const lost = !DEMO && inCall && lastLiveMsgTs != null && now - lastLiveMsgTs > LIVE_LOST_MS;
-    if (lost !== liveLost) { liveLost = lost; evLog(lost ? '<b class="eve">● observation channel (/live) had more than ' + Math.round(LIVE_LOST_MS / 1000) + ' s without any message</b>:the page cannot see server events' : 'observation channel (/live) recovered'); }
+    if (lost !== liveLost) { liveLost = lost; evLog(lost ? '<b class="eve">● observation channel (/live) had more than ' + Math.round(LIVE_LOST_MS / 1000) + ' s without any message</b>: the page cannot see server events' : 'observation channel (/live) recovered'); }
     const lh = $('livehealth'); if (lh) { lh.style.display = lost ? '' : 'none'; lh.textContent = lost ? 'observation channel (/live) lost ' + Math.round((now - lastLiveMsgTs) / 1000) + ' s: the page is not receiving server events, the lights and timers below may stop updating; this does not mean the call has dropped' : ''; }
   }
   if (DEMO || !inCall) { stallMode = false; return; }
@@ -718,9 +718,9 @@ function renderNetPanel() {
     + row('live bus one-way', half(wsRtt), wsRtt == null ? pend(inCall ? 'collecting' : 'waiting for call') : T('approx', 'estimate'))
     + '</div></div>'
     + '<div class="npn">HTTPS /ping round trip: min ' + ms(eMin) + ' · median ' + ms(eMed) + ' · ' + edge.s.length + ' samples (first packet ' + ms(edge.first) + ' includes handshake, not counted)' + (eMin == null ? '' : ' ' + T('real', 'measured'))
-    + '<br>TCP round trip of this connection recorded by Cloudflare (platform metric request.cf.clientTcpRtt, not an application one-way measurement; missing means missing):' + (cfb.tcpRtt != null ? ms(cfb.tcpRtt) + ' ' + T('real', 'measured') : (cfb.quicRtt != null ? ms(cfb.quicRtt) + '(QUIC) ' + T('real', 'measured') : (edge.cf ? 'not provided by the edge ' + T('na', 'unavailable') : '—')))
+    + '<br>TCP round trip of this connection recorded by Cloudflare (platform metric request.cf.clientTcpRtt, not an application one-way measurement; missing means missing): ' + (cfb.tcpRtt != null ? ms(cfb.tcpRtt) + ' ' + T('real', 'measured') : (cfb.quicRtt != null ? ms(cfb.quicRtt) + '(QUIC) ' + T('real', 'measured') : (edge.cf ? 'not provided by the edge ' + T('na', 'unavailable') : '—')))
     + (cfb.colo ? ' · point of presence ' + cfb.colo + (cfb.proto ? ' · ' + cfb.proto : '') : '')
-    + '<br>live bus (WebSocket→Durable Object) round trip:' + ms(wsRtt) + '(minimum taken every 5 s during the call)' + (wsRtt == null ? '' : ' ' + T('real', 'measured')) + '. one-way = round trip ÷ 2. Symmetry assumption not verified.</div></div>';
+    + '<br>live bus (WebSocket→Durable Object) round trip: ' + ms(wsRtt) + ' (minimum taken every 5 s during the call)' + (wsRtt == null ? '' : ' ' + T('real', 'measured')) + '. one-way = round trip ÷ 2. Symmetry assumption not verified.</div></div>';
   // C: Twilio <-> Cloudflare
   const rn = relayNet;
   const rr = rn ? (rn.tcpRtt != null ? rn.tcpRtt : rn.quicRtt) : null;
@@ -728,7 +728,7 @@ function renderNetPanel() {
     + '<div class="npd"><div><div class="npt">outbound Twilio→Cloudflare</div>' + row('one-way', half(rr), rr == null ? (rn ? T('na', 'unavailable') : pend(inCall ? 'waiting for connection' : 'waiting for call')) : T('approx', 'estimate')) + '</div>'
     + '<div><div class="npt">inbound Cloudflare→Twilio</div>' + row('one-way', half(rr), rr == null ? (rn ? T('na', 'unavailable') : pend(inCall ? 'waiting for connection' : 'waiting for call')) : T('approx', 'estimate')) + '</div></div>'
     + '<div class="npn">' + (rn ? ('TCP round trip of the Twilio connection recorded by Cloudflare (platform metric, not an application one-way):' + ms(rr) + (rr != null ? ' ' + T('real', 'measured') : '') + ' · Cloudflare point of presence ' + (rn.colo || '—') + ' · origin country ' + (rn.country || '—')) : 'provided by Cloudflare after the call is established')
-    + '. Inside Cloudflare (edge → Durable Object/Workers AI) the page cannot see,<b>already merged into each segment</b>.</div></div>';
+    + '. Inside Cloudflare (edge → Durable Object/Workers AI) the page cannot see, <b>already merged into each segment</b>.</div></div>';
   const cal = '<div class="npn">cross-clock offset:' + (Number.isFinite(clkOff) ? clkOff + 'ms' : '—') + ' <span class="tag pend">needs calibration</span>(not checked by an independent method; 0 is treated as unknown and not used for cross-clock numbers)</div>';
   el.innerHTML = A + B + C + cal + '<div class="npn" style="border:none">These network times are already included in end to end (local end of speech → downlink volume detected) and are not added again. A, B and C are three different paths and cannot substitute for each other.</div>';
 }

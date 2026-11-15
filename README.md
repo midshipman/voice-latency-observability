@@ -33,11 +33,14 @@ The LLM is deliberately a small, free model. The point of this project is the vo
 - Verified by the test suite in this repo (`npm test`, 22 files, no network, no Twilio account):
   event handling, turn counting, stall and cancel behavior, ledgers, lamp state machine,
   page rendering against recorded event shapes, call gate and storage limits.
-- **Not verified by the tests: a real call on this deployment.** Real calls need your own
-  Twilio account, a TwiML App and the secrets listed in `docs/DEPLOYMENT.md`. Until those are
-  set, `/voice`, `/ws` and `/token` fail closed and the demo mode and observability pages work
-  without any call. English speech recognition and voice selection (Deepgram `nova-3-general`,
-  ElevenLabs default voice via Twilio) are configured but have not been listened to in this repo.
+- **Real-call check (synthetic audio, not a human):** on the reference deployment, three calls were placed with a
+  synthetic English voice (`tests/e2e/`). Two ran to the end with two turns each. The final transcripts were 31 and 42 characters
+  (the lengths of the two test sentences; text is not stored, so the wording itself was not checked), replies were
+  played back, and the observability page filled from the server record. One call dropped after about 25 s with no recorded end event and
+  the cause was not found (a rerun with the same audio completed). A human on a phone has not been tested, speech
+  recognition quality on real accents and the actual ElevenLabs voice have not been listened to.
+- Without the Twilio secrets listed in `docs/DEPLOYMENT.md`, `/voice`, `/ws` and `/token` fail closed, and demo mode
+  (`/?demo=1`) and the observability pages still work without any call.
 - The numbers in `docs/ARCHITECTURE.md` come from earlier real calls of the original Chinese
   prototype; the raw call records are not included.
 

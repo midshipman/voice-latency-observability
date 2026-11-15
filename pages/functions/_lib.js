@@ -591,7 +591,7 @@ button{font-size:.82rem;padding:.35rem .9rem;border-radius:8px;border:1px solid 
 @media (max-width:480px){.agg-vl{width:100%;margin:.1rem 0 .3rem}}
 </style></head><body>
 <h2>Voice latency observability</h2>
-<div class="sub">auto-refreshes every 5 s · stores only timing and event metadata, no recordings, no conversation text · <span class="tag m">measured</span>=server record · <span class="tag b">approx</span>=browser clock estimate (includes provider internals + network + buffering) · <a href="/">Call page</a> · version ${PAGE_BUILD}/<span id="wbuild">?</span><br>2026-10-21 amplitude-based level timing was withdrawn: historical values tagged "legacy amplitude" come from that basis and are not latency evidence; statistics that include old data without that tag are affected the same way.</div>
+<div class="sub">auto-refreshes every 5 s · stores only timing and event metadata, no recordings, no conversation text · <span class="tag m">measured</span>=server record · <span class="tag b">approx</span>=browser clock estimate (includes provider internals + network + buffering) · <a href="/">Call page</a> · version ${PAGE_BUILD}/<span id="wbuild">?</span></div>
 
 <div class="card"><details><summary><b>Telemetry self-observation</b> <span class="sub">coverage / rejected / report-failure counts</span></summary><div id="telehealth">…</div>
 <div class="legend2">coverage = turns with browser reports / turns recorded by the server · report failures are counted by the browser on its next successful send, lost if the network is down, so they can only be underestimated · rejection breakdown: bad JSON/bad row = server 400 · edge 403 = session check failed (not logged in / expired / invalid) · edge 413 = over limit · no-result dedupe = duplicate reports of one event merged · counts start when obs-v1 went live and include synthetic validation traffic, so they do not represent historical coverage</div></details></div>
@@ -661,7 +661,7 @@ function restoreOpen() { document.querySelectorAll('#sessions details, #simsessi
 
 function turnCountFrag(s) {
   const ts = turnTriggerStats(s);
-  return ts.count + 'turns' + (ts.basis === 'records' && ts.count ? '<span class="tag b">by processing records, no trigger boundary so unverifiable</span>' : '');
+  return ts.count + ' turns' + (ts.basis === 'records' && ts.count ? '<span class="tag b">by processing records, no trigger boundary so unverifiable</span>' : '');
 }
 function sessDur(s) {
   if (s.end) return fmtMs(s.end.callDurationMs);
@@ -737,7 +737,7 @@ function cascadeHtml(s, isSim) {
       ? '<i class="' + k + (k === maxK ? ' bneck' : '') + '" style="width:' + Math.max(2.5, v / scale * 100) + '%"></i>' : '').join('');
     const e2eTxt = numok(r.sg.e2e) ? (r.sg.e2e/1000).toFixed(2) + 's' + (r.sg.amp && r.sg.amp.e2e ? '<span class="tag b">legacy amplitude</span>' : '')
       : (totals.length && numok(r.sg.s1) && numok(r.sg.s2) && numok(r.sg.s3) ? ((r.sg.s1+r.sg.s2+r.sg.s3)/1000).toFixed(2) + 's' : '-');
-    let html = '<div class="bar-row"><span class="tn">turn ' + r.t.turn + 'turns</span>'
+    let html = '<div class="bar-row"><span class="tn">turn ' + r.t.turn + '</span>'
       + '<div class="cascade">' + bar + '</div><span class="e2ev"' + (numok(r.sg.e2e) ? ' style="color:' + BC[bst(r.sg.e2e, BUDGET.e2e)] + '"' : '') + '>' + e2eTxt + '</span></div>';
     const flags = [];
     if (maxK) flags.push('<span class="blab">▲ slowest segment:' + SEGNAME[maxK] + ' ' + Math.round(maxV) + 'ms(' + tagOf(maxK) + ')</span>');
@@ -938,17 +938,17 @@ async function load() {
         + (e.who ? ' · ' + esc(e.who) + ' ' + esc(e.on) : '')
         + ' · arrived ' + esc(e.receivedAt ?? e.ts) + ' · turn/text chunk not confirmed'
         + (e.shape ? ' · field type ' + esc(JSON.stringify(e.shape)) : '') + '</div>';
-      if (e.event==='boundary') return '<div class="ev">turn ' + esc(e.turn) + 'turns · ' + esc(e.boundary) + ' · #' + esc(e.sequence ?? e.eventSeq)
+      if (e.event==='boundary') return '<div class="ev">turn ' + esc(e.turn) + ' · ' + esc(e.boundary) + ' · #' + esc(e.sequence ?? e.eventSeq)
         + ' · epoch ' + esc(e.epochTime ?? e.serverTs) + 'ms · monotonic clock ' + esc(Math.round(e.monotonicTime ?? e.serverMonoMs)) + 'ms'
         + (e.chunkSeq != null ? ' · text chunk #' + esc(e.chunkSeq) + (e.last ? '(end marker)' : '') : '')
         + (e.utteranceId ? ' · ' + esc(String(e.utteranceId).slice(-8)) + ' → ' + esc(String(e.responseId || '').slice(-8)) : '')
         + '<span class="tag m">measured</span> · code boundary' + (e.source ? ' · ' + esc(e.source) : '') + '</div>';
       if (e.event==='partial_prompt') return '';
-      if (e.event==='interrupt') return '<div class="ev">interrupt: turn ' + esc(e.turn) + 'turns,' + esc(e.durationUntilInterruptMs) + 'ms barge-in (playback progress, not reaction latency) <span class="tag m">measured</span></div>';
+      if (e.event==='interrupt') return '<div class="ev">interrupt: turn ' + esc(e.turn) + ', ' + esc(e.durationUntilInterruptMs) + 'ms barge-in (playback progress, not reaction latency) <span class="tag m">measured</span></div>';
       if (e.event==='twilio_error') return '<div class="ev"><span class="err">Twilio error:' + esc(e.description) + '</span></div>';
       if (e.event==='call_cap_reached') return '<div class="ev">reached the 10 minute per-call limit, hanging up automatically <span class="tag m">measured</span></div>';
       if (e.event==='dtmf') return '<div class="ev">keypress ' + esc(e.digit) + ' <span class="tag m">measured</span></div>';
-      if (e.event==='ws_close') return '<div class="ev">end:' + esc(e.turns) + 'turns · ' + fmtMs(e.callDurationMs) + ' <span class="tag m">measured</span></div>';
+      if (e.event==='ws_close') return '<div class="ev">end: ' + esc(e.turns) + ' turns · ' + fmtMs(e.callDurationMs) + ' <span class="tag m">measured</span></div>';
       if (e.event==='ws_idle_timeout') return '<div class="ev">120 seconds without activity, ended by the server (watchdog) <span class="tag m">measured</span></div>';
       return '<div class="ev">' + esc(e.event) + ' ' + esc(JSON.stringify(e).slice(0,200)) + '</div>';
     }).join('');
