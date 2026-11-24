@@ -76,3 +76,5 @@ sends `Disallow: /` in `robots.txt`.
 ## License
 
 No license file is included yet. Until the owner adds one, the default is all rights reserved.
+
+> 做事方法、质量标准和禁区见 [SKILL.md](SKILL.md)。
