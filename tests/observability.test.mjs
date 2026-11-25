@@ -175,12 +175,12 @@ const realSess = { id:'s1', start:'2026-10-31T10:00:00.000Z', callSid:SID, event
   const oldFetch = globalThis.fetch;
   globalThis.fetch = async (u) => { fetchedUrl = String(u); return { ok:false, status:401, json: async()=>({}) }; };
   const env2 = { PAGE_PASSCODE:'test-only', TWILIO_ACCOUNT_SID:'ACx', TWILIO_AUTH_TOKEN:'y',
-    METRICS:{idFromName:n=>n,get:()=>({fetch:async()=>({json:async()=>({sessions:[{start:'2026-10-22T19:21:57.285Z',events:[]}],evals:[]})})})},
+    METRICS:{idFromName:n=>n,get:()=>({fetch:async()=>({json:async()=>({sessions:[{start:new Date(Date.now()-5*864e5).toISOString(),events:[]}],evals:[]})})})},
     CALLGATE:{idFromName:n=>n,get:()=>({fetch:async()=>({json:async()=>null})})} };
   const res = await obsDataGet({ env:env2, request:new Request('https://test/obs/data',{headers:{cookie}}) });
   const body = await res.json();
   globalThis.fetch = oldFetch;
-  chk('reconciliation window covers oldest session, not today-only', /StartTime%3E=2026-10-22/.test(fetchedUrl));
+  chk('reconciliation window covers oldest session, not today-only', fetchedUrl.includes('StartTime%3E='+new Date(Date.now()-5*864e5).toISOString().slice(0,10)));
   chk('HTTP failure surfaces as note, not silent empty', typeof body.twilioNote === 'string' && body.twilioNote.includes('401'));
 }
 // 5) demo mode: timeline deltas and footer say synthetic, never measured
