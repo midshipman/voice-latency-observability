@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": false,
   "type": "module",
+  "engines": { "node": ">=20" },
   "description": "Latency and event observability for a Twilio ConversationRelay voice agent on Cloudflare (Pages Functions, Durable Objects, Workers AI).",
   "scripts": {
     "test": "node tests/run-all.mjs"
