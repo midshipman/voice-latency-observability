@@ -60,9 +60,16 @@ The LLM is deliberately a small, free model. The point of this project is the vo
 
 ## Quick start
 
+Requirements: Node.js 20 or newer (tested on 20.20 and 22.23; Node 18 fails some tests). There are
+no npm dependencies, so no `npm install` is needed.
+
 ```
-npm test
+git clone https://github.com/midshipman/voice-latency-observability.git
+cd voice-latency-observability
+npm test        # runs every tests/*.test.mjs, each in its own process; expect "all test files passed"
 ```
+
+The tests need no accounts or secrets.
 
 Deploy by following `docs/DEPLOYMENT.md`. Never commit credentials: they live in Cloudflare
 secrets and are read on the server at run time.
