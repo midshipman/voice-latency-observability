@@ -1,5 +1,12 @@
 # Voice latency observability
 
+> **Status (2026-11-26): the experiment is stopped. This repository is a public historical record and is no longer maintained.**
+>
+> - The call page described below is not meant to be tested any more. Please do not place calls.
+> - The deployment still exists and has not been deleted, but its dedicated call entry has been disabled on the telephony side (reversible). It is not fully offline.
+> - The slow-wait problem in the English demo was never verified as fixed. It is a known open issue.
+> - Everything below describes the project as it was while it ran. Setup and call instructions are kept for history, not as a current invitation to run or deploy it.
+
 A small, honest instrument for a cascaded voice agent. It places a browser call through
 Twilio ConversationRelay to a Cloudflare backend (Pages Functions, Durable Objects, Workers AI)
 and shows, for every stage of the path, what was actually observed, what is only approximated,
@@ -54,7 +61,7 @@ The LLM is deliberately a small, free model. The point of this project is the vo
 | `tests/` | offline tests; `npm test` runs all of them |
 | `scripts/` | helpers, not part of `npm test`: `crosscheck-call.mjs` and `insights-calibrate.mjs` read Twilio Voice Insights data with your Twilio credentials; `validate-telemetry.mjs` POSTs simulated rows to your deployed site and needs a login cookie (its effect on live data and cost is unverified). All need network and your own accounts |
 | `docs/ARCHITECTURE.md` | physical path, clocks, measurement points, what each proves and does not prove |
-| `docs/ROADMAP.md` | current plan |
+| `docs/ROADMAP.md` | plan as of when the project was active (historical, not being pursued) |
 | `docs/DEPLOYMENT.md` | setup, secrets, call protections, rollback |
 | `docs/DESIGN.md` | UI conventions and the budget display rules |
 
