@@ -52,7 +52,7 @@ The LLM is deliberately a small, free model. The point of this project is the vo
 | `pages/public/` | static assets (`sdk-observer.js`, `robots.txt`) |
 | `worker/` | Worker that hosts the Durable Objects (`CallGate`, `MetricsStore`, `LiveBus`) |
 | `tests/` | offline tests; `npm test` runs all of them |
-| `scripts/` | offline cross-check and calibration helpers for Twilio Voice Insights data |
+| `scripts/` | helpers, not part of `npm test`: `crosscheck-call.mjs` and `insights-calibrate.mjs` read Twilio Voice Insights data with your Twilio credentials; `validate-telemetry.mjs` POSTs simulated rows to your deployed site and needs a login cookie (its effect on live data and cost is unverified). All need network and your own accounts |
 | `docs/ARCHITECTURE.md` | physical path, clocks, measurement points, what each proves and does not prove |
 | `docs/ROADMAP.md` | current plan |
 | `docs/DEPLOYMENT.md` | setup, secrets, call protections, rollback |
@@ -70,6 +70,8 @@ npm test        # runs every tests/*.test.mjs, each in its own process; expect "
 ```
 
 The tests need no accounts or secrets.
+
+**Cost warning before you deploy.** `pages/wrangler.toml` sets `REAL_CALL_ENABLED = "true"` and `worker/wrangler.toml` sets `DAILY_CALL_CAP_MS = "0"` (no daily cap). Deploying as-is opens real Twilio calls, which cost money, with only the per-call limit and idle protection. Set `REAL_CALL_ENABLED = "false"` first if you do not want real calls. `npm test` never touches the network. `tests/e2e/` places real calls and needs `puppeteer-core` installed separately (`npm i puppeteer-core`, see `tests/e2e/README.md`), which is the one exception to "no npm dependencies".
 
 Deploy by following `docs/DEPLOYMENT.md`. Never commit credentials: they live in Cloudflare
 secrets and are read on the server at run time.

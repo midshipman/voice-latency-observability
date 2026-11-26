@@ -1,4 +1,4 @@
-// Synthetic telemetry validation (P3 acceptance cases). Sim rows only, no calls, no cost.
+// Synthetic telemetry validation (P3 acceptance cases). Sends simulated rows (no phone calls) to the deployed site at BASE, so it needs network and a login cookie. Its effect on live data and cost is unverified; not part of npm test.
 // Usage: VP_COOKIE="vp_sess=..." BASE=https://YOUR-PROJECT.pages.dev node scripts/validate-telemetry.mjs
 const BASE = process.env.BASE || "https://YOUR-PROJECT.pages.dev";
 const COOKIE = process.env.VP_COOKIE;
